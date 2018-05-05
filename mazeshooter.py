@@ -1,5 +1,7 @@
-import pygame, time, random
-import os, subprocess
+import pygame
+import numpy as np
+import time, random, math
+import os, subprocess, threading 
 from pygame.locals import *
 
 
@@ -67,12 +69,17 @@ class Maze():
 width, height = 1200, 700
 blue = (0, 0, 255)
 yellow = (255, 255, 0)
-tick_spd = 30
+fps = 30
 audio_muted = False
 move_keys = {"up": False, "left": False, "down": False, "right": False, "space": False}
+rotate_keys = {"NE": False, "NW": False, "SW": False, "SE": False}
 key_up_flag = True
 
-tick_clk = pygame.time.Clock()
+fps_clk = pygame.time.Clock()
+
+
+# Fonts
+timer_font = pygame.font.SysFont("Comic Sans MS", 50)
 
 
 # Image ICC Profile Adjustments (if necessary)
@@ -96,9 +103,9 @@ audio_sign = pygame.transform.scale(pygame.image.load(get_resource("audiosign.jp
 	
 
 # Spites and Blocks
-sprites_lst = pygame.sprite.Group()
+spites_lst = pygame.sprite.Group()
 shooter = Shooter(100, 100)
-sprites_lst.add(shooter)
+spites_lst.add(shooter)
 bullet = Bullet(20, 20)
 enemy_end = pygame.Rect(0, 0, width/15, height)
 
@@ -108,7 +115,7 @@ pygame.mixer.music.load(get_resource("mazegamemusic.wav"))
 pygame.mixer.music.play(-1)
 
 
-def start(end_color = blue):
+def start(redraw_player = True, end_color = blue):	
 	screen.fill(0)
 	for x in range(0, width, uw_logo.get_width() + 1):
 		for y in range(0, height, uw_logo.get_height() + 1):
@@ -116,13 +123,17 @@ def start(end_color = blue):
 	pygame.draw.rect(screen, end_color, (0, 0, width/15, height), 0)
 	end_color = blue
 	screen.blit(audio_sign, (0, (9 * height)/10))
-	sprites_lst.update()
-	sprites_lst.draw(screen)
+
+	if redraw_player:
+		spites_lst.update()
+		spites_lst.draw(screen)
 
 	return None
 
 
-def play_game(end_color):
+def play_round(end_color):
+	cursor_moved = False
+
 	while True:
 		global audio_muted
 		start(end_color)
@@ -135,22 +146,18 @@ def play_game(end_color):
 			elif event.type == pygame.KEYDOWN: 
 				if event.key == K_w or event.key == K_UP:
 					move_keys["up"] = True
-					screen.blit(arrow_up, (0, 0))
 				elif event.key == K_a or event.key == K_LEFT:
 					move_keys["left"] = True
-					screen.blit(arrow_left, (0, 0))
 				elif event.key == K_s or event.key == K_DOWN:
 					move_keys["down"] = True
-					screen.blit(arrow_down, (0, 0))
 				elif event.key == K_d or event.key == K_RIGHT:
 					move_keys["right"] = True
-					screen.blit(arrow_right, (0, 0))
 				elif event.key == K_SPACE:
 					move_keys["space"] = True
 					dx, dy = 0, 0 
 					while shooter.rect.right + bullet.width + dx <= screen_rect.right:
-						screen.blit(bullet.image, (shooter.rect.right + dx, shooter.rect.top + dy))
-						dx += 3
+						screen.blit(bullet.image, (shooter.rect.right + dx, (shooter.rect.top  + shooter.rect.bottom)/2 + dy))
+						dx += 5
 			elif event.type == pygame.KEYUP: 
 				if event.key == K_w or event.key == K_UP:
 					move_keys["up"] = False
@@ -169,15 +176,27 @@ def play_game(end_color):
 				else:
 					pygame.mixer.music.pause()
 					audio_muted = True
+			elif event.type == pygame.MOUSEMOTION:
+				cursor_moved = True
+				rel_cursor_psn = tuple(np.subtract(pygame.mouse.get_pos(),shooter.rect.center))
+				player_angle = -math.degrees(math.atan(rel_cursor_psn[1]/rel_cursor_psn[0]))
+				start(False, end_color)
+				screen.blit(pygame.transform.rotate(shooter.image, player_angle), (shooter.rect.x, shooter.rect.y))
+
 
 		if move_keys["up"]:
 			shooter.rect.y -= 3
+			screen.blit(arrow_up, (0, 0))
 		elif move_keys["down"]:
 			shooter.rect.y += 3
+			screen.blit(arrow_down, (0, 0))
 		if move_keys["left"] and not pygame.Rect.colliderect(enemy_end, shooter.rect):
 			shooter.rect.x -= 3
+			screen.blit(arrow_left, (0, 0))
 		elif move_keys["right"]:
 			shooter.rect.x += 3
+			screen.blit(arrow_right, (0, 0))
+
 
 		if pygame.Rect.colliderect(enemy_end, shooter.rect):
 			end_color = yellow
@@ -185,9 +204,13 @@ def play_game(end_color):
 			end_color = blue
 
 		pygame.display.flip()	
-		tick_clk.tick(tick_spd)
+		fps_clk.tick(fps)
 
-	print("An error occurred -- program exit")
-	return False 
+	return True 
 
-play_game(blue)
+
+def play_game():
+	play_round(blue)
+
+
+play_game()
