@@ -223,9 +223,7 @@ def play_round(round_number, end_color):
 				if mouse_psnX <= width/15 and mouse_psnY >= (9 * height)/10: 
 					audio_muted = play_audio(audio_muted)
 				elif mouse_psnX <= width/15 and mouse_psnY > (8 * height)/10 and mouse_psnY < (9 * height)/10: 
-					game_in_progress = False
-					shooter.rect.x, shooter.rect.y = 100, 100
-
+					return False
 
 		if move_keys["up"]:
 			shooter.rect.y -= 3
@@ -262,7 +260,9 @@ def play_round(round_number, end_color):
 def play_game():
 	n = 1
 	while True:
-		play_round(n, green)
-		n += 1
+		if play_round(n, green):
+			n += 1 
+		else:
+			n = 1
 
 play_game()
