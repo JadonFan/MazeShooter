@@ -82,7 +82,7 @@ fps_clk = pygame.time.Clock()
 timer_font = pygame.font.SysFont("Comic Sans MS", 50)
 
 
-# Image ICC Profile Adjustments (if necessary)
+# Image ICC Profile Adjustments (if necessary, using ImageMagick) 
 '''
 def adjust_ICC():
 	res_path = str(os.path.join(os.path.dirname(os.path.abspath(__file__)), "Resources"))
@@ -176,12 +176,12 @@ def play_round(end_color):
 				else:
 					pygame.mixer.music.pause()
 					audio_muted = True
-			elif event.type == pygame.MOUSEMOTION:
-				cursor_moved = True
-				rel_cursor_psn = tuple(np.subtract(pygame.mouse.get_pos(),shooter.rect.center))
-				player_angle = -math.degrees(math.atan(rel_cursor_psn[1]/rel_cursor_psn[0]))
-				start(False, end_color)
-				screen.blit(pygame.transform.rotate(shooter.image, player_angle), (shooter.rect.x, shooter.rect.y))
+			
+		cursor_moved = True
+		rel_cursor_psn = tuple(np.subtract(pygame.mouse.get_pos(),shooter.rect.center))
+		player_angle = -math.degrees(math.atan(rel_cursor_psn[1]/rel_cursor_psn[0]))
+		start(False, end_color)
+		screen.blit(pygame.transform.rotate(shooter.image, player_angle), (shooter.rect.x, shooter.rect.y))
 
 
 		if move_keys["up"]:
