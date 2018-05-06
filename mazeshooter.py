@@ -1,5 +1,6 @@
 import pygame
 import numpy as np
+import matplotlib as mpl
 import time, random, math
 import os, subprocess, threading 
 from pygame.locals import *
@@ -7,7 +8,7 @@ from pygame.locals import *
 
 pygame.init()
 pygame.mixer.init()
-pygame.display.set_caption("Maze Shooter")
+pygame.display.set_caption("Defend the Town")
 
 
 def get_resource(filename):
@@ -16,7 +17,7 @@ def get_resource(filename):
 class Shooter(pygame.sprite.Sprite):
 	def __init__(self, sprite_width, sprite_height):
 		super().__init__()
-		self.image = pygame.transform.scale(pygame.image.load(get_resource("person.png")), (sprite_width, sprite_height))
+		self.image = pygame.transform.scale(pygame.image.load(get_resource("person.png")).convert_alpha(), (sprite_width, sprite_height))
 		self.rect = self.image.get_rect()
 		self.rect.x = 100
 		self.rect.y = 100
@@ -26,7 +27,9 @@ class Bullet(pygame.sprite.Sprite):
 	def __init__(self, sprite_width, sprite_height):
 		super().__init__()
 		self.width = sprite_width
-		self.image = pygame.transform.scale(pygame.image.load(get_resource("bullet.jpg")), (sprite_width, sprite_height))
+		self.height = sprite_height
+		white = (0, 0, 0)
+		self.image = pygame.transform.scale(pygame.image.load(get_resource("bullet.png")).convert_alpha(), (sprite_width, sprite_height))
 		self.rect = self.image.get_rect()
 		self.speed = 10
 
@@ -69,17 +72,21 @@ class Maze():
 width, height = 1200, 700
 blue = (0, 0, 255)
 yellow = (255, 255, 0)
+dark_red = (139, 0, 0)
 fps = 30
 audio_muted = False
 move_keys = {"up": False, "left": False, "down": False, "right": False, "space": False}
 rotate_keys = {"NE": False, "NW": False, "SW": False, "SE": False}
+ammo_keys = {"reload": False}
 key_up_flag = True
 
 fps_clk = pygame.time.Clock()
 
 
 # Fonts
-timer_font = pygame.font.SysFont("Comic Sans MS", 50)
+comic_font50 = pygame.font.SysFont("Comic Sans MS", 50)
+tnr30 = pygame.font.SysFont("Times New Roman", 30)
+
 
 
 # Image ICC Profile Adjustments (if necessary, using ImageMagick) 
@@ -94,18 +101,19 @@ def adjust_ICC():
 # Image Loads 
 screen = pygame.display.set_mode((width, height))
 screen_rect = screen.get_rect()
-uw_logo = pygame.image.load(get_resource("uwlogo.png"))
+background_img = pygame.image.load(get_resource("grass.jpg"))
 arrow_up = pygame.transform.scale(pygame.image.load(get_resource("arrowup.png")), (width//15, height//15))
 arrow_left = pygame.transform.scale(pygame.image.load(get_resource("arrowleft.png")), (width//15, height//15))
 arrow_down = pygame.transform.scale(pygame.image.load(get_resource("arrowdown.png")), (width//15, height//15))
 arrow_right = pygame.transform.scale(pygame.image.load(get_resource("arrowright.png")), (width//15, height//15))
 audio_sign = pygame.transform.scale(pygame.image.load(get_resource("audiosign.jpg")), (width//15, height//10))
+cancel_round = pygame.transform.scale(pygame.image.load(get_resource("cancelround.png")), (width//15, height//10))
 	
 
-# Spites and Blocks
-spites_lst = pygame.sprite.Group()
+# Sprites and Blocks
+sprites_lst = pygame.sprite.Group()
 shooter = Shooter(100, 100)
-spites_lst.add(shooter)
+sprites_lst.add(shooter)
 bullet = Bullet(20, 20)
 enemy_end = pygame.Rect(0, 0, width/15, height)
 
@@ -114,29 +122,46 @@ enemy_end = pygame.Rect(0, 0, width/15, height)
 pygame.mixer.music.load(get_resource("mazegamemusic.wav"))
 pygame.mixer.music.play(-1)
 
+def play_audio(audio_muted):
+	if audio_muted:
+		pygame.mixer.music.unpause()
+		audio_muted = False 
+	else:
+		pygame.mixer.music.pause()
+		audio_muted = True
+	return audio_muted
 
-def start(redraw_player = True, end_color = blue):	
+def shooting_angle():
+	rel_cursor_psn = tuple(np.subtract(pygame.mouse.get_pos(),shooter.rect.center))
+	player_angle = -math.degrees(math.atan(rel_cursor_psn[1]/rel_cursor_psn[0]))
+	return player_angle
+
+
+def start(ammo_count, end_color = blue):	
 	screen.fill(0)
-	for x in range(0, width, uw_logo.get_width() + 1):
-		for y in range(0, height, uw_logo.get_height() + 1):
-			screen.blit(uw_logo, (x, y))
+	for x in range(0, width, background_img.get_width() + 1):
+		for y in range(0, height, background_img.get_height() + 1):
+			screen.blit(background_img, (x, y))
 	pygame.draw.rect(screen, end_color, (0, 0, width/15, height), 0)
 	end_color = blue
 	screen.blit(audio_sign, (0, (9 * height)/10))
+	ammo_title = tnr30.render("Ammo:", True, (0, 0, 0))
+	screen.blit(ammo_title, (5, height/2 - 25))
+	ammo_text = comic_font50.render(str(ammo_count), True, (155, 155, 24))
+	screen.blit(ammo_text, (20, height/2))
 
-	if redraw_player:
-		spites_lst.update()
-		spites_lst.draw(screen)
+	screen.blit(pygame.transform.rotate(shooter.image, shooting_angle()), (shooter.rect.x, shooter.rect.y))
 
 	return None
 
 
-def play_round(end_color):
-	cursor_moved = False
+def play_round(round_number, end_color):
+	game_in_progress = True
+	ammo_count = 25
 
-	while True:
+	while game_in_progress:
 		global audio_muted
-		start(end_color)
+		start(ammo_count, end_color)
 
 		for event in pygame.event.get():
 			mouse_psnX, mouse_psnY = pygame.mouse.get_pos()
@@ -152,12 +177,18 @@ def play_round(end_color):
 					move_keys["down"] = True
 				elif event.key == K_d or event.key == K_RIGHT:
 					move_keys["right"] = True
-				elif event.key == K_SPACE:
-					move_keys["space"] = True
+				elif event.key == K_SPACE and ammo_count > 0:
 					dx, dy = 0, 0 
+					ammo_count -= 1
+					start(ammo_count, end_color)
 					while shooter.rect.right + bullet.width + dx <= screen_rect.right:
-						screen.blit(bullet.image, (shooter.rect.right + dx, (shooter.rect.top  + shooter.rect.bottom)/2 + dy))
-						dx += 5
+						bullet_direct = (shooter.rect.right + dx, (shooter.rect.top  + shooter.rect.bottom)/2 + dx * math.tan(math.radians(-shooting_angle())))
+						screen.blit(pygame.transform.rotate(bullet.image, shooting_angle()), bullet_direct)
+						dx += 30
+				elif event.key == K_r:
+					ammo_keys["reload"] = True
+				elif event.key == K_m:
+					audio_muted = play_audio(audio_muted)
 			elif event.type == pygame.KEYUP: 
 				if event.key == K_w or event.key == K_UP:
 					move_keys["up"] = False
@@ -167,22 +198,13 @@ def play_round(end_color):
 					move_keys["down"] = False
 				elif event.key == K_d or event.key == K_RIGHT:
 					move_keys["right"] = False
-				elif event.key == K_SPACE:
-					move_keys["space"] = False
-			elif event.type == pygame.MOUSEBUTTONDOWN and mouse_psnX <= width/15 and mouse_psnY >= (9 * height)/10: 
-				if audio_muted:
-					pygame.mixer.music.unpause()
-					audio_muted = False 
-				else:
-					pygame.mixer.music.pause()
-					audio_muted = True
-			
-		cursor_moved = True
-		rel_cursor_psn = tuple(np.subtract(pygame.mouse.get_pos(),shooter.rect.center))
-		player_angle = -math.degrees(math.atan(rel_cursor_psn[1]/rel_cursor_psn[0]))
-		start(False, end_color)
-		screen.blit(pygame.transform.rotate(shooter.image, player_angle), (shooter.rect.x, shooter.rect.y))
-
+				elif event.key == K_r:
+					ammo_keys["reload"] = True
+			elif event.type == pygame.MOUSEBUTTONDOWN:
+				if mouse_psnX <= width/15 and mouse_psnY >= (9 * height)/10: 
+					audio_muted = play_audio(audio_muted)
+				elif mouse_psnX <= width/15 and mouse_psnY > (8 * height)/10 and mouse_psnY < (9 * height)/10: 
+					game_in_progress = False
 
 		if move_keys["up"]:
 			shooter.rect.y -= 3
@@ -197,6 +219,12 @@ def play_round(end_color):
 			shooter.rect.x += 3
 			screen.blit(arrow_right, (0, 0))
 
+		if ammo_keys["reload"]:
+			reload_msg = comic_font50.render("RELOADING", True, (255, 255, 255))
+			screen.blit(reload_msg, (width/2 - 25, height/2))
+			time.sleep(3)
+			ammo_count = 25
+			ammo_keys["reload"] = False
 
 		if pygame.Rect.colliderect(enemy_end, shooter.rect):
 			end_color = yellow
@@ -210,7 +238,9 @@ def play_round(end_color):
 
 
 def play_game():
-	play_round(blue)
-
+	n = 1
+	while True:
+		play_round(n, blue)
+		n += 1
 
 play_game()
