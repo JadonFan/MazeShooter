@@ -28,10 +28,26 @@ class Bullet(pygame.sprite.Sprite):
 		super().__init__()
 		self.width = sprite_width
 		self.height = sprite_height
-		white = (0, 0, 0)
 		self.image = pygame.transform.scale(pygame.image.load(get_resource("bullet.png")).convert_alpha(), (sprite_width, sprite_height))
 		self.rect = self.image.get_rect()
 		self.speed = 10
+
+class Bullet(pygame.sprite.Sprite):
+	def __init__(self, sprite_width, sprite_height):
+		super().__init__()
+		self.width = sprite_width
+		self.height = sprite_height
+		self.image = pygame.transform.scale(pygame.image.load(get_resource("bullet.png")).convert_alpha(), (sprite_width, sprite_height))
+		self.rect = self.image.get_rect()
+		self.speed = 10
+
+class AmmoBox(pygame.sprite.Sprite):
+	def __init__(self, sprite_width, sprite_height):
+		super().__init__()
+		self.width = sprite_width
+		self.height = sprite_height
+		self.image = pygame.transform.scale(pygame.image.load(get_resource("bullet.png")).convert_alpha(), (sprite_width, sprite_height))
+		self.rect = self.image.get_rect()
 
 '''
 class Maze():
@@ -86,12 +102,16 @@ yellow = (255, 255, 0)
 red = (255, 0, 0)
 green = (0, 255, 0)
 dark_red = (139, 0, 0)
+grey = (155, 155, 24)
+black = (0, 0, 0)
+white = (255, 255, 255)
 
 
 # Fonts
 comic_font50 = pygame.font.SysFont("Comic Sans MS", 50)
 comic_font100 = pygame.font.SysFont("Comic Sans MS", 100)
 tnr30 = pygame.font.SysFont("Times New Roman", 30)
+avant_grande100 = pygame.font.SysFont("Avant Grande", 100)
 
 
 
@@ -114,6 +134,9 @@ arrow_down = pygame.transform.scale(pygame.image.load(get_resource("arrowdown.pn
 arrow_right = pygame.transform.scale(pygame.image.load(get_resource("arrowright.png")).convert_alpha(), (width//15, height//15))
 audio_sign = pygame.transform.scale(pygame.image.load(get_resource("audiosign.jpg")), (width//15, height//10))
 cancel_round = pygame.transform.scale(pygame.image.load(get_resource("cancelround.png")), (width//15, height//10))
+pause_button = pygame.transform.scale(pygame.image.load(get_resource("pause.png")).convert_alpha(), (width//15, height//10))
+resume_button = pygame.transform.scale(pygame.image.load(get_resource("resume.png")).convert_alpha(), (width//15, height//10))
+golf_ball = pygame.transform.scale(pygame.image.load(get_resource("golfball.jpg")).convert_alpha(), (50, 50))
 	
 
 # Sprites and Blocks
@@ -127,6 +150,21 @@ enemy_end = pygame.Rect(0, 0, width/15, height)
 # Audio Loads
 pygame.mixer.music.load(get_resource("mazegamemusic.wav"))
 pygame.mixer.music.play(-1)
+
+def add_enemy(enemy_coords):
+	enemy_X = random.randint(500, width)
+	enemy_Y = random.randint(0, height)
+	enemy_coords.append([enemy_X, enemy_Y])
+	return None
+
+def move_enemy(enemy_coords):
+	for coords_set in enemy_coords:
+		coords_set[0] -= random.randint(0, 25)
+		if coords_set[1] < height:
+			coords_set[1] += random.randint(-25, 25)
+		else:
+			coords_set[1] += random.randint(0, 25)
+	return None
 
 def play_audio(audio_muted):
 	if audio_muted:
@@ -142,8 +180,7 @@ def shooting_angle():
 	player_angle = -math.degrees(math.atan(rel_cursor_psn[1]/rel_cursor_psn[0]))
 	return player_angle
 
-
-def start(round_number, ammo_count, end_color = green):	
+def start(in_play, enemy_coords, time_remaining, round_number, ammo_count, end_color = green):	
 	screen.fill(0)
 	for x in range(0, width, background_img.get_width() + 1):
 		for y in range(0, height, background_img.get_height() + 1):
@@ -151,38 +188,65 @@ def start(round_number, ammo_count, end_color = green):
 	pygame.draw.rect(screen, blue, (0, 0, width/15, height), 0)
 	pygame.draw.rect(screen, end_color, (width/15, 0, 20, height))
 	end_color = blue
-	screen.blit(audio_sign, (0, (9 * height)/10))
+
+	if in_play:
+		screen.blit(pause_button, (0, (7 * height)/10))
+	else:
+		screen.blit(resume_button, (0, (7 * height)/10))
+		screen.blit(avant_grande100.render("PAUSED", True, black), (width/2 - 100, height/2))
 	screen.blit(cancel_round, (0, (8 * height)/10))
+	screen.blit(audio_sign, (0, (9 * height)/10))
+
+	clk_time = tnr30.render("Time: ", True, (0, 0, 0))
+	screen.blit(clk_time, (5, height/5))
+	
+	time_left = comic_font50.render(str(time_remaining), True, grey)
+	screen.blit(time_left, (20, height/5 + 20)) 
 
 	round_title = tnr30.render("Round:", True, (0, 0, 0))
 	screen.blit(round_title, (5, height/3))
-	round_number = comic_font50.render(str(round_number), True, (155, 155, 24))
+	round_number = comic_font50.render(str(round_number), True, grey)
 	screen.blit(round_number, (25, height/3 + 20))
 
 	ammo_title = tnr30.render("Ammo:", True, (0, 0, 0))
 	screen.blit(ammo_title, (5, height/2 - 25))
-	ammo_text = comic_font50.render(str(ammo_count), True, (155, 155, 24))
+	ammo_text = comic_font50.render(str(ammo_count), True, grey)
 	screen.blit(ammo_text, (20, height/2))
 
 	screen.blit(pygame.transform.rotate(shooter.image, shooting_angle()), (shooter.rect.x, shooter.rect.y))
 
+	for X, Y in enemy_coords:
+		screen.blit(golf_ball, (X, Y))
+
 	return None
 
-
 def play_round(round_number, end_color):
+	global audio_muted
 	game_in_progress = True
 	ammo_count = 25
+	time_remaining = 120
+	enemy_freq = 1500//round_number
+	enemy_coords = []
+	in_play = True
+
+	# Custom Events (and the Timers)
+	round_tick = pygame.USEREVENT + 1 
+	pygame.time.set_timer(round_tick, 1000)
+
+	enemy_appear = pygame.USEREVENT + 2
+	pygame.time.set_timer(enemy_appear, enemy_freq)
 
 	while game_in_progress:
-		global audio_muted
-		start(round_number, ammo_count, end_color)
+		start(in_play, enemy_coords, time_remaining, round_number, ammo_count, end_color)
 
 		for event in pygame.event.get():
 			mouse_psnX, mouse_psnY = pygame.mouse.get_pos()
 			if event.type == pygame.QUIT:
 				pygame.quit()
 				exit(0)
-			elif event.type == pygame.KEYDOWN: 
+			elif event.type == pygame.MOUSEBUTTONDOWN and mouse_psnX <= width/15 and mouse_psnY > (7 * height)/10 and mouse_psnY < (8 * height)/10: 
+				in_play = not in_play
+			elif event.type == pygame.KEYDOWN and in_play: 
 				if event.key == K_w or event.key == K_UP:
 					move_keys["up"] = True
 				elif event.key == K_a or event.key == K_LEFT:
@@ -195,11 +259,13 @@ def play_round(round_number, end_color):
 					if ammo_count > 0:
 						dx, dy = 0, 0 
 						ammo_count -= 1
-						start(round_number, ammo_count, end_color)
-						while shooter.rect.right + bullet.width + dx <= screen_rect.right:
+						start(in_play, enemy_coords, time_remaining, round_number, ammo_count, end_color)
+						bullet_range = 12
+						while shooter.rect.right + bullet.width + dx <= screen_rect.right and bullet_range >= 0:
 							bullet_direct = (shooter.rect.right + dx, (shooter.rect.top  + shooter.rect.bottom)/2 + dx * math.tan(math.radians(-shooting_angle())))
 							screen.blit(pygame.transform.rotate(bullet.image, shooting_angle()), bullet_direct)
 							dx += 30
+							bullet_range -= 1
 					else:
 						reload_rect = pygame.draw.rect(screen, (0, 0, 0), (width/2 - 200, height/2, 350, 60), 0)
 						reload_msg = comic_font100.render("NO AMMO", True, red)
@@ -208,7 +274,7 @@ def play_round(round_number, end_color):
 					ammo_keys["reload"] = True
 				elif event.key == K_m:
 					audio_muted = play_audio(audio_muted)
-			elif event.type == pygame.KEYUP: 
+			elif event.type == pygame.KEYUP and in_play: 
 				if event.key == K_w or event.key == K_UP:
 					move_keys["up"] = False
 				elif event.key == K_a or event.key == K_LEFT:
@@ -223,7 +289,14 @@ def play_round(round_number, end_color):
 				if mouse_psnX <= width/15 and mouse_psnY >= (9 * height)/10: 
 					audio_muted = play_audio(audio_muted)
 				elif mouse_psnX <= width/15 and mouse_psnY > (8 * height)/10 and mouse_psnY < (9 * height)/10: 
-					return False
+					shooter.rect.x, shooter.rect.y = 100, 100
+					return False					
+			elif event.type == round_tick and time_remaining > 0 and in_play: 
+				time_remaining -= 1 
+				start(in_play, enemy_coords, time_remaining, round_number, ammo_count, end_color)
+			elif event.type == enemy_appear and in_play:
+				add_enemy(enemy_coords)
+				move_enemy(enemy_coords)
 
 		if move_keys["up"]:
 			shooter.rect.y -= 3
@@ -242,7 +315,7 @@ def play_round(round_number, end_color):
 			reload_rect = pygame.draw.rect(screen, (0, 0, 0), (width/2 - 200, height/2, 410, 60), 0)
 			reload_msg = comic_font100.render("RELOADING", True, red)
 			screen.blit(reload_msg, (width/2 - 200, height/2))
-			time.sleep(3)
+			time.sleep(1.5)
 			ammo_count = 25
 			ammo_keys["reload"] = False
 
@@ -264,5 +337,6 @@ def play_game():
 			n += 1 
 		else:
 			n = 1
+
 
 play_game()
