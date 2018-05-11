@@ -14,6 +14,8 @@ pygame.display.set_caption("Defend the Town")
 def get_resource(filename):
 	return os.path.join(os.path.dirname(os.path.abspath(__file__)), "Resources", filename)
 
+
+# Sprite Classes
 class Shooter(pygame.sprite.Sprite):
 	def __init__(self, sprite_width, sprite_height):
 		super().__init__()
@@ -24,21 +26,25 @@ class Shooter(pygame.sprite.Sprite):
 		self.speed = 5
 
 class Bullet(pygame.sprite.Sprite):
-	def __init__(self, sprite_width, sprite_height):
+	def __init__(self, sprite_width, sprite_height, X, Y):
 		super().__init__()
 		self.width = sprite_width
 		self.height = sprite_height
 		self.image = pygame.transform.scale(pygame.image.load(get_resource("bullet.png")).convert_alpha(), (sprite_width, sprite_height))
 		self.rect = self.image.get_rect()
+		self.rect.x = X
+		self.rect.y = Y
 		self.speed = 10
 
-class Bullet(pygame.sprite.Sprite):
-	def __init__(self, sprite_width, sprite_height):
+class EnemyOne(pygame.sprite.Sprite):
+	def __init__(self, sprite_width, sprite_height, X, Y):
 		super().__init__()
 		self.width = sprite_width
 		self.height = sprite_height
-		self.image = pygame.transform.scale(pygame.image.load(get_resource("bullet.png")).convert_alpha(), (sprite_width, sprite_height))
+		self.image = pygame.transform.scale(pygame.image.load(get_resource("golfball.jpg")).convert_alpha(), (sprite_width, sprite_height))
 		self.rect = self.image.get_rect()
+		self.rect.x = X
+		self.rect.y = Y
 		self.speed = 10
 
 class AmmoBox(pygame.sprite.Sprite):
@@ -46,7 +52,7 @@ class AmmoBox(pygame.sprite.Sprite):
 		super().__init__()
 		self.width = sprite_width
 		self.height = sprite_height
-		self.image = pygame.transform.scale(pygame.image.load(get_resource("bullet.png")).convert_alpha(), (sprite_width, sprite_height))
+		self.image = pygame.transform.scale(pygame.image.load(get_resource("golfball.jpg")).convert_alpha(), (sprite_width, sprite_height))
 		self.rect = self.image.get_rect()
 
 '''
@@ -93,6 +99,8 @@ rotate_keys = {"NE": False, "NW": False, "SW": False, "SE": False}
 ammo_keys = {"reload": False}
 key_up_flag = True
 
+
+# Frame Clock
 fps_clk = pygame.time.Clock()
 
 
@@ -108,14 +116,15 @@ white = (255, 255, 255)
 
 
 # Fonts
+# NOTES: Variable definitions are written in the format of the name of the font followed by the size of the font 
+#        All fonts in this section are system fonts on macOS 10.13 -- not yet verified for other versions of macOS and for other operating systems
 comic_font50 = pygame.font.SysFont("Comic Sans MS", 50)
 comic_font100 = pygame.font.SysFont("Comic Sans MS", 100)
 tnr30 = pygame.font.SysFont("Times New Roman", 30)
 avant_grande100 = pygame.font.SysFont("Avant Grande", 100)
 
 
-
-# Image ICC Profile Adjustments (if necessary, using ImageMagick) 
+# ICC Profile Adjustments for Images (if necessary, using ImageMagick) 
 '''
 def adjust_ICC():
 	res_path = str(os.path.join(os.path.dirname(os.path.abspath(__file__)), "Resources"))
@@ -124,7 +133,8 @@ def adjust_ICC():
 '''
 
 
-# Image Loads 
+# Image Loads and Shape Definitions
+# NOTE: See the Resources directory on the GitHub repo for the images
 screen = pygame.display.set_mode((width, height))
 screen_rect = screen.get_rect()
 background_img = pygame.image.load(get_resource("grass.jpg"))
@@ -136,15 +146,16 @@ audio_sign = pygame.transform.scale(pygame.image.load(get_resource("audiosign.jp
 cancel_round = pygame.transform.scale(pygame.image.load(get_resource("cancelround.png")), (width//15, height//10))
 pause_button = pygame.transform.scale(pygame.image.load(get_resource("pause.png")).convert_alpha(), (width//15, height//10))
 resume_button = pygame.transform.scale(pygame.image.load(get_resource("resume.png")).convert_alpha(), (width//15, height//10))
-golf_ball = pygame.transform.scale(pygame.image.load(get_resource("golfball.jpg")).convert_alpha(), (50, 50))
 	
 
 # Sprites and Blocks
 sprites_lst = pygame.sprite.Group()
 shooter = Shooter(100, 100)
-sprites_lst.add(shooter)
-bullet = Bullet(20, 20)
+bullet = Bullet(20, 20, shooter.rect.x, shooter.rect.y)
 enemy_end = pygame.Rect(0, 0, width/15, height)
+enemy_one_master = EnemyOne(50, 50, 0, 0)
+
+sprites_lst.add(shooter)
 
 
 # Audio Loads
@@ -154,14 +165,14 @@ pygame.mixer.music.play(-1)
 def add_enemy(enemy_coords):
 	enemy_X = random.randint(500, width)
 	enemy_Y = random.randint(0, height)
-	enemy_coords.append([enemy_X, enemy_Y])
+	enemy_coords.append([enemy_X, enemy_Y])          # 2D list required due to mutation in the move_enemy function -- avoid tuples here 
 	return None
 
 def move_enemy(enemy_coords):
-	for coords_set in enemy_coords:
+	for coords_set in enemy_coords:                    
 		coords_set[0] -= random.randint(0, 25)
 		if coords_set[1] < height:
-			coords_set[1] += random.randint(-25, 25)
+			coords_set[1] += random.randint(-25, 25)  
 		else:
 			coords_set[1] += random.randint(0, 25)
 	return None
@@ -216,7 +227,7 @@ def start(in_play, enemy_coords, time_remaining, round_number, ammo_count, end_c
 	screen.blit(pygame.transform.rotate(shooter.image, shooting_angle()), (shooter.rect.x, shooter.rect.y))
 
 	for X, Y in enemy_coords:
-		screen.blit(golf_ball, (X, Y))
+		screen.blit(enemy_one_master.image, (X, Y))
 
 	return None
 
@@ -224,15 +235,17 @@ def play_round(round_number, end_color):
 	global audio_muted
 	game_in_progress = True
 	ammo_count = 25
-	time_remaining = 120
-	enemy_freq = 1500//round_number
-	enemy_coords = []
-	in_play = True
+	time_remaining = 120              
+	enemy_freq = 1500//round_number   # the amount of time required for another enemy to appear on the screen
+	enemy_coords = []                 # list of 2D coordinates of each enemy to be displayed on the screen
+	enemy_group = pygame.sprite.Group()
+	in_play = True				      # True if game is in "playing" state; False if game is in "resume" state
 
 	# Custom Events (and the Timers)
+	# EVENT 1: Round Timer
 	round_tick = pygame.USEREVENT + 1 
 	pygame.time.set_timer(round_tick, 1000)
-
+	# EVENT 2: Addition of New Enemy 
 	enemy_appear = pygame.USEREVENT + 2
 	pygame.time.set_timer(enemy_appear, enemy_freq)
 
@@ -245,7 +258,8 @@ def play_round(round_number, end_color):
 				pygame.quit()
 				exit(0)
 			elif event.type == pygame.MOUSEBUTTONDOWN and mouse_psnX <= width/15 and mouse_psnY > (7 * height)/10 and mouse_psnY < (8 * height)/10: 
-				in_play = not in_play
+				in_play = not in_play      # changes the state of the game from "playing" to "resumed" when pause button is pressed, and vice versa when 
+										   # resume button is pressed (latter is the default)
 			elif event.type == pygame.KEYDOWN and in_play: 
 				if event.key == K_w or event.key == K_UP:
 					move_keys["up"] = True
@@ -260,12 +274,19 @@ def play_round(round_number, end_color):
 						dx, dy = 0, 0 
 						ammo_count -= 1
 						start(in_play, enemy_coords, time_remaining, round_number, ammo_count, end_color)
-						bullet_range = 12
+						bullet_range = 12    # defines the number of iterations of the bullet animation, hence providing the gun with an approriate range
+						enemy_group.empty()  # although not really necessary, it's a fail-safe measure to ensure that the group does not have duplicate sprites 
 						while shooter.rect.right + bullet.width + dx <= screen_rect.right and bullet_range >= 0:
-							bullet_direct = (shooter.rect.right + dx, (shooter.rect.top  + shooter.rect.bottom)/2 + dx * math.tan(math.radians(-shooting_angle())))
-							screen.blit(pygame.transform.rotate(bullet.image, shooting_angle()), bullet_direct)
+							bullet.rect.x = shooter.rect.right + dx
+							bullet.rect.y = (shooter.rect.top  + shooter.rect.bottom)/2 + dx * math.tan(math.radians(-shooting_angle()))
+							screen.blit(pygame.transform.rotate(bullet.image, shooting_angle()), (bullet.rect.x, bullet.rect.y))
 							dx += 30
 							bullet_range -= 1
+							for enemyX, enemyY in enemy_coords:
+								enemy_group.add(EnemyOne(50, 50, enemyX, enemyY))
+							enemy_group.update()
+							if pygame.sprite.spritecollide(bullet, enemy_group, True):
+								bullet_range = -1
 					else:
 						reload_rect = pygame.draw.rect(screen, (0, 0, 0), (width/2 - 200, height/2, 350, 60), 0)
 						reload_msg = comic_font100.render("NO AMMO", True, red)
@@ -304,7 +325,7 @@ def play_round(round_number, end_color):
 		elif move_keys["down"]:
 			shooter.rect.y += 3
 			screen.blit(arrow_down, (0, 0))
-		if move_keys["left"] and not pygame.Rect.colliderect(enemy_end, shooter.rect):
+		if move_keys["left"] and not pygame.Rect.colliderect(enemy_end, shooter.rect):   # prevents the player sprite from moving beyond the town
 			shooter.rect.x -= 3
 			screen.blit(arrow_left, (0, 0))
 		elif move_keys["right"]:
@@ -319,13 +340,9 @@ def play_round(round_number, end_color):
 			ammo_count = 25
 			ammo_keys["reload"] = False
 
-		if pygame.Rect.colliderect(enemy_end, shooter.rect):
-			end_color = yellow
-		else:
-			end_color = green
-
 		pygame.display.flip()	
 		fps_clk.tick(fps)
+		game_in_progress = (time_remaining != 0)  
 
 	return True 
 
@@ -333,10 +350,7 @@ def play_round(round_number, end_color):
 def play_game():
 	n = 1
 	while True:
-		if play_round(n, green):
-			n += 1 
-		else:
-			n = 1
+		n = n + 1 if play_round(n, green) else 1
 
 
 play_game()
