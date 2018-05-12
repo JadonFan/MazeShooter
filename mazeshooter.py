@@ -207,7 +207,7 @@ def access_dev(n, thread_running):
 		n[0] = -1
 		if "pythongame-" in pw and len(pw) == 12 and pw[-1].isdigit():
 			n[0] = int((pw.split("-"))[1])
-			thread_running = False
+			thread_running = False 
 		else:
 			print("Access Denied, error code %d" %n[0])
 
@@ -231,8 +231,8 @@ def play_audio(audio_muted):
 
 def shooting_angle():
 	rel_cursor_psn = tuple(np.subtract(pygame.mouse.get_pos(), shooter.rect.center))
-	angle_offset = 0 if rel_cursor_psn[0] >= 0 else -180
-	return -(math.degrees(math.atan(rel_cursor_psn[1]/rel_cursor_psn[0])) + angle_offset)
+	angle_offset = 0 if rel_cursor_psn[0] >= 0 else 180
+	return -(math.degrees(math.atan(rel_cursor_psn[1]/rel_cursor_psn[0]))) + angle_offset
 
 def start(health_points, in_play, enemy_group, time_remaining, round_number, ammo_count, end_color = green):	
 	screen.fill(0)
