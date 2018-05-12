@@ -310,7 +310,7 @@ def play_round(round_number, end_color):
 			mouse_psnX, mouse_psnY = pygame.mouse.get_pos()
 			if event.type == pygame.QUIT:
 				pygame.quit()
-				exit(0)
+				os._exit(1)
 			elif event.type == pygame.MOUSEBUTTONDOWN and mouse_psnX <= width/15 and mouse_psnY > (8 * height)/10 and mouse_psnY < (9 * height)/10: 
 				in_play = not in_play      # changes the state of the game from "PLAYING" to "PAUSED" when pause button is pressed, and vice versa when 
 										   #    resume button is pressed (latter is the default)
@@ -426,9 +426,8 @@ def start_game(thread_running):
 	begin = False
 	n = [1]          # a list is used so that the value of n can be mutated when access_dev is called in the dev_key thread 
 
-	if thread_running:
-		dev_key = threading.Thread(target = access_dev, args = [n, thread_running], name = "Developer Key")
-		dev_key.start()
+	dev_key = threading.Thread(target = access_dev, args = [n, thread_running], name = "Developer Key")
+	dev_key.start()
 
 	while not begin:
 		screen.fill(turquoise)
@@ -439,7 +438,7 @@ def start_game(thread_running):
 		for event in pygame.event.get():
 			if event.type == pygame.QUIT:
 				pygame.quit()
-				exit(0)
+				os._exit(1)
 			elif event.type == pygame.MOUSEBUTTONDOWN:
 				begin = True
 
