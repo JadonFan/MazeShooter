@@ -201,17 +201,17 @@ pygame.mixer.music.play(-1)
 
 # access_dev() allows you to "skip" rounds, through a multithreaded process, to test balance changes.
 # The thread that calls this function can be found in the start_game() function 
-def access_dev(n, running):
-	while running:
+def access_dev(n, thread_running):
+	while thread_running:
 		pw = input("")
 		n[0] = -1
 		if "pythongame-" in pw and len(pw) == 12 and pw[-1].isdigit():
 			n[0] = int((pw.split("-"))[1])
-			running = False
+			thread_running = False
 		else:
 			print("Access Denied, error code %d" %n[0])
 
-	return None
+	return n[0]
 
 def move_enemy(enemy_group):
 	for enemy in enemy_group:                    
@@ -365,7 +365,7 @@ def play_round(round_number, end_color):
 					shooter.rect.x, shooter.rect.y = 100, 100
 					return False
 				elif mouse_psnX > (14 * width)/15 and mouse_psnX <= width and mouse_psnY >= (9 * height)/10: 
-					start_game()		
+					start_game(False)		
 			elif event.type == round_tick and time_remaining > 0 and in_play: 
 				time_remaining -= 1 
 				start(health_points, in_play, enemy_group, time_remaining, round_number, ammo_count, end_color)
@@ -416,19 +416,19 @@ def play_game(round_number):
 		if sys.platform.startswith("darwin"):
 			os.system("osascript -e 'display notification \"{0}\" with title \"{1}\"'".format("Round %d has started" %round_number, "Defend the Town"))
 		elif sys.platform.startswith("linux"):
-			os.system("notify-send {0} {1}".format("Round %d has started" %round_number, "Defend the Town"))
+			os.system("notify-send {0} {1}".format("Defend the Town", "Round %d has started" %round_number))
 	except: raise OSError(1, "Notification cannot be displayed")
 	else:   round_number = round_number + 1 if play_round(round_number, green) else 1
 
 	return play_game(round_number)
 
-def start_game():
+def start_game(thread_running):
 	begin = False
-	running = True
 	n = [1]          # a list is used so that the value of n can be mutated when access_dev is called in the dev_key thread 
 
-	dev_key = threading.Thread(target = access_dev, args = [n, running], name = "Developer Key")
-	dev_key.start()
+	if thread_running:
+		dev_key = threading.Thread(target = access_dev, args = [n, thread_running], name = "Developer Key")
+		dev_key.start()
 
 	while not begin:
 		screen.fill(turquoise)
@@ -447,4 +447,4 @@ def start_game():
 
 	return None
 
-start_game()
+start_game(True)
