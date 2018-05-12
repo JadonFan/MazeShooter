@@ -1,21 +1,21 @@
 import pygame
+from pygame.locals import *
 import numpy as np
 import matplotlib as mpl
 import time, random, math
-import os, subprocess, threading 
-from pygame.locals import *
-
+import os, sys, subprocess, threading
 
 pygame.init()
 pygame.mixer.init()
 pygame.display.set_caption("Defend the Town")
 
 
-def get_resource(filename):
+# ==================================================================================
+# SPRITE CLASSES
+# ==================================================================================
+def get_resource(filename):   
 	return os.path.join(os.path.dirname(os.path.abspath(__file__)), "Resources", filename)
 
-
-# Sprite Classes
 class Shooter(pygame.sprite.Sprite):
 	def __init__(self, sprite_width, sprite_height):
 		super().__init__()
@@ -90,35 +90,45 @@ class Maze():
 		return 
 '''
 
-# Dimensions 
+
+# ==================================================================================
+# DIMENSIONS 
+# ================================================================================== 
 width, height = 1200, 700
-audio_muted = False
-move_keys = {"up": False, "left": False, "down": False, "right": False, "space": False}
-rotate_keys = {"NE": False, "NW": False, "SW": False, "SE": False}
-ammo_keys = {"reload": False}
-key_up_flag = True
 
 
-# Frame Clock
+# ==================================================================================
+# FRAME CLOCK
+# ==================================================================================
 fps = 60
 fps_clk = pygame.time.Clock()
 
 
-# Colours
-blue = (0, 0, 255)
-yellow = (255, 255, 0)
+# ==================================================================================
+# COLOURS (based on their RGB values)
+# ==================================================================================
 red = (255, 0, 0)
-green = (0, 255, 0)
 dark_red = (139, 0, 0)
+
+yellow = (255, 255, 0)
+
+green = (0, 255, 0)
+
+blue = (0, 0, 255)
+turquoise = (64, 228, 208)
+
 grey = (155, 155, 24)
 black = (0, 0, 0)
 white = (255, 255, 255)
-turquoise = (64, 228, 208)
 
 
-# Fonts
-# NOTES: Variable definitions are written in the format of the name of the font followed by the size of the font 
-#        All fonts in this section are system fonts on macOS 10.13 -- not yet verified for other versions of macOS and for other operating systems
+# ==================================================================================
+# FONTS
+#   - Variable definitions are written in the format of the name of the font followed  
+#       by the size of the font 
+#   - All fonts in this section are system fonts on macOS 10.13, not yet verified 
+#       for other versions of macOS and for other operating systems
+# ==================================================================================
 comic_font50 = pygame.font.SysFont("Comic Sans MS", 50)
 comic_font100 = pygame.font.SysFont("Comic Sans MS", 100)
 tnr30 = pygame.font.SysFont("Times New Roman", 30)
@@ -126,7 +136,9 @@ avant_grande100 = pygame.font.SysFont("Avant Grande", 100)
 tnr150 = pygame.font.SysFont("Times New Roman", 150)
 
 
-# ICC Profile Adjustments for Images (if necessary, using ImageMagick) 
+# ==================================================================================
+# ICC PROFILE ADJUSTMENT (using ImageMagick) 
+# ==================================================================================
 '''
 def adjust_ICC():
 	res_path = str(os.path.join(os.path.dirname(os.path.abspath(__file__)), "Resources"))
@@ -135,24 +147,37 @@ def adjust_ICC():
 '''
 
 
-# Image Loads and Shape Definitions
+# ==================================================================================
+# IMAGES AND SHAPES
 # NOTE: See the Resources directory on the GitHub repo for the images
+# ==================================================================================
 screen = pygame.display.set_mode((width, height))
 screen_rect = screen.get_rect()
 background_img = pygame.image.load(get_resource("grass.jpg"))
+
+# these arrow images will appear whenever the respective movement keys (WASD/updownleftright) are pressed 
 arrow_up = pygame.transform.scale(pygame.image.load(get_resource("arrowup.png")).convert_alpha(), (width//15, height//15))
 arrow_left = pygame.transform.scale(pygame.image.load(get_resource("arrowleft.png")).convert_alpha(), (width//15, height//15))
 arrow_down = pygame.transform.scale(pygame.image.load(get_resource("arrowdown.png")).convert_alpha(), (width//15, height//15))
 arrow_right = pygame.transform.scale(pygame.image.load(get_resource("arrowright.png")).convert_alpha(), (width//15, height//15))
+
+# mutes audio in all pages
 audio_sign = pygame.transform.scale(pygame.image.load(get_resource("audiosign.jpg")), (width//15, height//10))
+# resets the game back to round 1
 redo_button = pygame.transform.scale(pygame.image.load(get_resource("redoarrow.png")), (width//15, height//10))
+# switches the state of the game to "PAUSED", where timer and animations all stop 
 pause_button = pygame.transform.scale(pygame.image.load(get_resource("pause.png")).convert_alpha(), (width//15, height//10))
+# switches the state of the game to "PLAYING", reversing the "PAUSED" state
 resume_button = pygame.transform.scale(pygame.image.load(get_resource("resume.png")).convert_alpha(), (width//15, height//10))
+# starts the game from the main menu screen
 start_button = pygame.transform.scale(pygame.image.load(get_resource("start.jpg")).convert_alpha(), (400, 50))
+# returns the user to the main menu 
 return_button = pygame.transform.scale(pygame.image.load(get_resource("returnarrow.jpg")).convert_alpha(), (width//15, height//10))
 
 
-# Sprites and Blocks
+# ==================================================================================
+# SPRITES & BLOCKS
+# ==================================================================================
 sprites_lst = pygame.sprite.Group()
 shooter = Shooter(100, 100)
 bullet = Bullet(20, 20, shooter.rect.x, shooter.rect.y)
@@ -162,9 +187,31 @@ enemy_one_master = EnemyOne(50, 50, 0, 0)
 sprites_lst.add(shooter)
 
 
-# Audio Loads
+# ==================================================================================
+# AUDIO 
+# ==================================================================================
+audio_muted = False
 pygame.mixer.music.load(get_resource("mazegamemusic.wav"))
 pygame.mixer.music.play(-1)
+
+
+# ==================================================================================
+# GAMEPLAY FUNCTIONS 
+# ==================================================================================
+
+# access_dev() allows you to "skip" rounds, through a multithreaded process, to test balance changes.
+# The thread that calls this function can be found in the start_game() function 
+def access_dev(n, running):
+	while running:
+		pw = input("")
+		n[0] = -1
+		if "pythongame-" in pw and len(pw) == 12 and pw[-1].isdigit():
+			n[0] = int((pw.split("-"))[1])
+			running = False
+		else:
+			print("Access Denied, error code %d" %n[0])
+
+	return None
 
 def move_enemy(enemy_group):
 	for enemy in enemy_group:                    
@@ -234,23 +281,25 @@ def start(health_points, in_play, enemy_group, time_remaining, round_number, amm
 	return None
 
 def play_round(round_number, end_color):
-	global audio_muted
-	game_in_progress = True
-	ammo_count = 25
+	global audio_muted                        # audio_muted is kept as a global variable so that the setting is consistent across all game screens 
+	game_in_progress = True            
+	in_play = True				              # True if game is in "PLAYING" state; False if game is in "PAUSED" state
+	ammo_count = 25                          
 	time_remaining = 60              
 	enemy_move_freq = 2250//round_number      # the amount of time required for another enemy to appear on the screen
 	enemy_group = pygame.sprite.Group()
-	in_play = True				         # True if game is in "playing" state; False if game is in "resume" state
 	health_points = 100 + round_number//3 * 50
+	move_keys = {"up": False, "left": False, "down": False, "right": False, "space": False}
+	ammo_keys = {"reload": False}
 
-	# Custom Events (and the Timers)
-	# EVENT 1: Round Timer
+	# CUSTOM EVENTS 
+	# 1: Round Timer
 	round_tick = pygame.USEREVENT + 1 
 	pygame.time.set_timer(round_tick, 1000)
-	# EVENT 2: Addition of New Enemy 
+	# 2: Addition of New Enemy 
 	enemy_appear = pygame.USEREVENT + 2
 	pygame.time.set_timer(enemy_appear, 2000)
-	# EVENT 3: Movement of Enemy 
+	# 3: Movement of Enemy 
 	enemy_move = pygame.USEREVENT + 3
 	pygame.time.set_timer(enemy_move, enemy_move_freq)
 
@@ -263,8 +312,8 @@ def play_round(round_number, end_color):
 				pygame.quit()
 				exit(0)
 			elif event.type == pygame.MOUSEBUTTONDOWN and mouse_psnX <= width/15 and mouse_psnY > (8 * height)/10 and mouse_psnY < (9 * height)/10: 
-				in_play = not in_play      # changes the state of the game from "playing" to "resumed" when pause button is pressed, and vice versa when 
-										   # resume button is pressed (latter is the default)
+				in_play = not in_play      # changes the state of the game from "PLAYING" to "PAUSED" when pause button is pressed, and vice versa when 
+										   #    resume button is pressed (latter is the default)
 			elif event.type == pygame.KEYDOWN and in_play: 
 				if event.key == K_w or event.key == K_UP:
 					move_keys["up"] = True
@@ -279,7 +328,7 @@ def play_round(round_number, end_color):
 						dx, dy = 0, 0 
 						ammo_count -= 1
 						start(health_points, in_play, enemy_group, time_remaining, round_number, ammo_count, end_color)
-						bullet_range = 10   # defines the number of iterations of the bullet animation, hence providing the gun with an approriate range
+						bullet_range = 10   # defines the number of iterations of the bullet animation
 						while shooter.rect.right + bullet.width + dx <= screen_rect.right and bullet_range >= 0:
 							angle = shooting_angle()
 							bullet.rect.x = shooter.rect.right + dx
@@ -359,18 +408,28 @@ def play_round(round_number, end_color):
 
 	return health_points > 0  
 
-def play_game(n):
-	if n == 10:
+def play_game(round_number):
+	if round_number == 10:
 		return "Complete"
 
-	try:    os.system("osascript -e 'display notification \"{0}\" with title \"{1}\"'".format("Round {} has started".format(n), "Defend the Town"))
+	try:    
+		if sys.platform.startswith("darwin"):
+			os.system("osascript -e 'display notification \"{0}\" with title \"{1}\"'".format("Round %d has started" %round_number, "Defend the Town"))
+		elif sys.platform.startswith("linux"):
+			os.system("notify-send {0} {1}".format("Round %d has started" %round_number, "Defend the Town"))
 	except: raise OSError(1, "Notification cannot be displayed")
-	else:   n = n + 1 if play_round(n, green) else 1
+	else:   round_number = round_number + 1 if play_round(round_number, green) else 1
 
-	return play_game(n)
+	return play_game(round_number)
 
 def start_game():
 	begin = False
+	running = True
+	n = [1]          # a list is used so that the value of n can be mutated when access_dev is called in the dev_key thread 
+
+	dev_key = threading.Thread(target = access_dev, args = [n, running], name = "Developer Key")
+	dev_key.start()
+
 	while not begin:
 		screen.fill(turquoise)
 		game_title = tnr150.render("Defend the Town", True, black)
@@ -384,8 +443,7 @@ def start_game():
 			elif event.type == pygame.MOUSEBUTTONDOWN:
 				begin = True
 
-		if begin:
-			play_game(1)
+	play_game(n[0])
 
 	return None
 
