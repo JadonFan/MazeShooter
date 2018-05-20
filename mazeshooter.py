@@ -55,6 +55,18 @@ class AmmoBox(pygame.sprite.Sprite):
 		self.image = pygame.transform.scale(pygame.image.load(get_resource("golfball.jpg")).convert_alpha(), (sprite_width, sprite_height))
 		self.rect = self.image.get_rect()
 
+class Block(pygame.sprite.Sprite):
+	def __init__(self, sprite_width, sprite_height, angle, X, Y):
+		super().__init__()
+		self.width = sprite_width
+		self.height = sprite_height
+		self.image = pygame.transform.rotate(pygame.transform.scale(pygame.image.load(get_resource("greyblock.jpg")).convert_alpha(), \
+			(sprite_width, sprite_height)), angle)
+		self.rect = self.image.get_rect()
+		self.rect.x = X
+		self.rect.y = Y
+		self.speed = 10
+
 '''
 class Maze():
 	def __init__(self, maze_width, maze_height):
@@ -179,7 +191,7 @@ return_button = pygame.transform.scale(pygame.image.load(get_resource("returnarr
 # SPRITES & BLOCKS
 # ==================================================================================
 sprites_lst = pygame.sprite.Group()
-shooter = Shooter(100, 100)
+shooter = Shooter(50, 50)
 bullet = Bullet(20, 20, shooter.rect.x, shooter.rect.y)
 enemy_end = pygame.Rect(0, 0, width/15, height)
 enemy_one_master = EnemyOne(50, 50, 0, 0)
@@ -199,13 +211,13 @@ pygame.mixer.music.play(-1)
 # GAMEPLAY FUNCTIONS 
 # ==================================================================================
 
-# access_dev() allows you to "skip" rounds, through a multithreaded process, to test balance changes.
-# The thread that calls this function can be found in the start_game() function 
+# access_dev() allows you to 'skip' rounds, through a multithreaded process, to test balance changes.
+# The call to this thread can be found in the start_game() function 
 def access_dev(n, thread_running):
 	while thread_running:
-		pw = input("")
+		pw = input(">> ")
 		n[0] = -1
-		if "pythongame-" in pw and len(pw) == 12 and pw[-1].isdigit():
+		if pw.startswith("pythongame-") and len(pw) == 12 and pw[-1].isdigit():
 			n[0] = int((pw.split("-"))[1])
 			thread_running = False 
 		else:
@@ -234,7 +246,11 @@ def shooting_angle():
 	angle_offset = 0 if rel_cursor_psn[0] >= 0 else 180
 	return -(math.degrees(math.atan(rel_cursor_psn[1]/rel_cursor_psn[0]))) + angle_offset
 
-def start(health_points, in_play, enemy_group, time_remaining, round_number, ammo_count, end_color = green):	
+def in_movable_zone(blk_grp, move_code):
+	return True
+
+
+def start(blk_grp, health_points, in_play, enemy_group, time_remaining, round_number, ammo_count, end_color = green):	
 	screen.fill(0)
 	for x in range(0, width, background_img.get_width() + 1):
 		for y in range(0, height, background_img.get_height() + 1):
@@ -276,6 +292,8 @@ def start(health_points, in_play, enemy_group, time_remaining, round_number, amm
 	ammo_text = comic_font50.render(str(ammo_count), True, grey)
 	screen.blit(ammo_text, (20, height/2 - 70))
 
+	blk_grp.draw(screen)
+
 	screen.blit(pygame.transform.rotate(shooter.image, shooting_angle()), (shooter.rect.x, shooter.rect.y))
 
 	return None
@@ -291,6 +309,8 @@ def play_round(round_number, end_color):
 	health_points = 100 + round_number//3 * 50
 	move_keys = {"up": False, "left": False, "down": False, "right": False, "space": False}
 	ammo_keys = {"reload": False}
+	grey_areas = {}
+	blk_grp = pygame.sprite.Group()
 
 	# CUSTOM EVENTS 
 	# 1: Round Timer
@@ -304,7 +324,7 @@ def play_round(round_number, end_color):
 	pygame.time.set_timer(enemy_move, enemy_move_freq)
 
 	while game_in_progress:
-		start(health_points, in_play, enemy_group, time_remaining, round_number, ammo_count, end_color)
+		start(blk_grp, health_points, in_play, enemy_group, time_remaining, round_number, ammo_count, end_color)
 
 		for event in pygame.event.get():
 			mouse_psnX, mouse_psnY = pygame.mouse.get_pos()
@@ -327,12 +347,13 @@ def play_round(round_number, end_color):
 					if ammo_count > 0:
 						dx, dy = 0, 0 
 						ammo_count -= 1
-						start(health_points, in_play, enemy_group, time_remaining, round_number, ammo_count, end_color)
+						start(blk_grp, health_points, in_play, enemy_group, time_remaining, round_number, ammo_count, end_color)
 						bullet_range = 10   # defines the number of iterations of the bullet animation
 						while shooter.rect.right + bullet.width + dx <= screen_rect.right and bullet_range >= 0:
 							angle = shooting_angle()
-							bullet.rect.x = shooter.rect.right + dx
-							bullet.rect.y = (shooter.rect.top  + shooter.rect.bottom)/2 + dx * math.tan(math.radians(-angle))
+							bullet.rect.x = shooter.rect.right + 10 + dx
+							bullet.rect.y = 10 + (shooter.rect.top  + shooter.rect.bottom)/2 + dx * math.tan(math.radians(-angle))
+							grey_areas[(angle, bullet.rect.x, bullet.rect.y)] = 0
 							screen.blit(pygame.transform.rotate(bullet.image, angle), (bullet.rect.x, bullet.rect.y))
 							dx = dx + 30 if angle <= 180 and angle >= -180 else dx - 30
 							bullet_range -= 1
@@ -368,7 +389,17 @@ def play_round(round_number, end_color):
 					start_game(False)		
 			elif event.type == round_tick and time_remaining > 0 and in_play: 
 				time_remaining -= 1 
-				start(health_points, in_play, enemy_group, time_remaining, round_number, ammo_count, end_color)
+				tbr = []
+				for block in grey_areas:
+					if grey_areas[block] == 3:
+						tbr.append(block)       # the tbr list stores the expired "no go" grey blocks, with the next for loop iterating 
+												# through this list and removing the elements in the grey_areas dictionary whose keys appear
+												# in tbr -- prevents the length of the dictionary from changing during iteration 
+					else:
+						grey_areas[block] += 1 
+				for block in tbr:        
+					grey_areas.pop(block)
+				start(blk_grp, health_points, in_play, enemy_group, time_remaining, round_number, ammo_count, end_color)
 			elif event.type == enemy_appear and in_play:
 				enemy_group.add(EnemyOne(50, 50, random.randint(500, width), random.randint(0, height)))
 			elif event.type == enemy_move and in_play and enemy_group:
@@ -376,16 +407,17 @@ def play_round(round_number, end_color):
 
 		enemy_group.update()
 
-		if move_keys["up"]:
+		if move_keys["up"] and in_movable_zone(blk_grp, 0):
 			shooter.rect.y -= 5
 			screen.blit(arrow_up, (0, 0))
-		elif move_keys["down"]:
+		elif move_keys["down"] and in_movable_zone(blk_grp, 1):
 			shooter.rect.y += 5
 			screen.blit(arrow_down, (0, 0))
-		if move_keys["left"] and not pygame.Rect.colliderect(enemy_end, shooter.rect):   # prevents the player sprite from moving beyond the town
+		if move_keys["left"] and in_movable_zone(blk_grp, 0) and not pygame.Rect.colliderect(enemy_end, shooter.rect):   # prevents the player sprite 
+																														 # from moving beyond the town
 			shooter.rect.x -= 5
 			screen.blit(arrow_left, (0, 0))
-		elif move_keys["right"]:
+		elif move_keys["right"] and in_movable_zone(blk_grp, 0):
 			shooter.rect.x += 5
 			screen.blit(arrow_right, (0, 0))
 
@@ -402,6 +434,10 @@ def play_round(round_number, end_color):
 				enemy.kill()
 				health_points -= 10
 
+		blk_grp.empty()
+		for block in grey_areas:
+			blk_grp.add(Block(20, 20,  block[0], block[1], block[2]))
+
 		pygame.display.flip()	
 		fps_clk.tick(fps)
 		game_in_progress = (time_remaining != 0 and health_points > 0)  
@@ -409,11 +445,11 @@ def play_round(round_number, end_color):
 	return health_points > 0  
 
 def play_game(round_number):
-	if round_number == 10:
+	if round_number == 10: 
 		return "Complete"
 
 	try:    
-		if sys.platform.startswith("darwin"):
+		if sys.platform == "darwin":
 			os.system("osascript -e 'display notification \"{0}\" with title \"{1}\"'".format("Round %d has started" %round_number, "Defend the Town"))
 		elif sys.platform.startswith("linux"):
 			os.system("notify-send {0} {1}".format("Defend the Town", "Round %d has started" %round_number))
