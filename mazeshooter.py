@@ -514,7 +514,7 @@ def start_game(thread_running):
 				os._exit(1)
 			elif event.type == pygame.MOUSEBUTTONDOWN:
 				begin = True
-
+				
 	play_game(n[0])
 
 	return None
