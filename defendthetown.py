@@ -4,12 +4,9 @@ import numpy as np
 import matplotlib as mpl
 import time, random, math
 import os, sys, subprocess, threading
-import animation as AN 
 
-pygame.init()
-pygame.mixer.init()
-pygame.display.set_caption("Defend the Town")
-
+sys.path.append(os.path.dirname(__file__))
+from closeupplay import win_challenge
 
 '''
 HOW TO PLAY:
@@ -148,7 +145,9 @@ grey = (155, 155, 24)
 black = (0, 0, 0)
 white = (255, 255, 255)
 
-
+pygame.init()
+pygame.mixer.init()
+pygame.display.set_caption("Defend the Town")
 # ==================================================================================
 # FONTS
 #   - Variable definitions are written in the format of the name of the font followed  
@@ -178,7 +177,7 @@ def adjust_ICC():
 # IMAGES AND SHAPES
 # NOTE: See the Resources directory on the GitHub repo for the images
 # ==================================================================================
-screen = pygame.display.set_mode((width, height))
+screen = pygame.display.set_mode((width, height), RESIZABLE)
 screen_rect = screen.get_rect()
 background_img = pygame.image.load(get_resource("grass.jpg"))
 
@@ -240,12 +239,14 @@ def access_dev(n, thread_running):
 
 	return n[0]
 
+
 def move_enemy(enemy_group):
 	for enemy in enemy_group:                    
 		enemy.rect.x -= random.randint(20, 50)
 		enemy.rect.y += random.randint(-25, 25) if enemy.rect.y < height else random.randint(-25, 0)  
 	enemy_group.update()
 	return enemy_group
+
 
 def play_audio(audio_muted):
 	if audio_muted:
@@ -256,6 +257,7 @@ def play_audio(audio_muted):
 		audio_muted = True
 	return audio_muted
 
+
 def shooting_angle():
 	rel_cursor_psn = tuple(np.subtract(pygame.mouse.get_pos(), shooter.rect.center))
 	angle_offset = 0 if rel_cursor_psn[0] >= 0 else 180
@@ -264,6 +266,7 @@ def shooting_angle():
 	except ZeroDivisionError:  
 		print("Error to be fixed in shooting_angle function")
 		return 0
+
 
 # in_movable_zone(blk_grp, move_code) checks whether or not the player will move the character into a grey block in
 # the next frame, and if so, ensures that a time penalty is given
@@ -282,7 +285,9 @@ def in_movable_zone(blk_grp, move_code):
 
 	return not pygame.sprite.spritecollide(shooter, blk_grp_copy, False)
 
+
 def start(blk_grp, health_points, in_play, enemy_group, time_remaining, round_number, ammo_count, end_color = green):	
+	pygame.init()
 	screen.fill(0)
 	for x in range(0, width, background_img.get_width() + 1):
 		for y in range(0, height, background_img.get_height() + 1):
@@ -392,8 +397,12 @@ def play_round(round_number, end_color):
 							screen.blit(pygame.transform.rotate(bullet.image, angle), (bullet.rect.x, bullet.rect.y))
 							dx = dx + 30 if angle <= 180 and angle >= -180 else dx - 30
 							bullet_range -= 1
-							if pygame.sprite.spritecollide(bullet, enemy_group, True):
+							if pygame.sprite.spritecollide(bullet, enemy_group, True):   # stop the bullet once it hits an enemy
 								bullet_range = -1
+								if False and random.randint(0, 100) > 90:  # if a number randomly chosen is greater than 90, then go into the 3D mode 
+									if not win_challenge():  # access the 3D game animation (not yet ready)
+										health_points -= 10
+								start(blk_grp, health_points, in_play, enemy_group, time_remaining, round_number, ammo_count, end_color)
 							enemy_group.update()
 					else:
 						reload_rect = pygame.draw.rect(screen, (0, 0, 0), (width/2 - 200, height/2, 350, 60), 0)
@@ -464,6 +473,7 @@ def play_round(round_number, end_color):
 			ammo_count = 25
 			ammo_keys["reload"] = False
 
+		# when the enemy reaches the town, deduct 10 HP and remove the enemy from the enemy sprite list 
 		for enemy in enemy_group:
 			if pygame.Rect.colliderect(pygame.Rect(width/15, 0, 20, height), enemy.rect):
 				enemy.kill()
@@ -478,6 +488,7 @@ def play_round(round_number, end_color):
 		game_in_progress = (time_remaining != 0 and health_points > 0)  
     
 	return health_points > 0  
+
 
 def play_game(round_number):
 	if round_number == 10: 
@@ -494,6 +505,7 @@ def play_game(round_number):
 		round_number = round_number + 1 if play_round(round_number, green) else 1
 
 	return play_game(round_number)
+
 
 def start_game(thread_running):
 	begin = False
@@ -514,7 +526,7 @@ def start_game(thread_running):
 				os._exit(1)
 			elif event.type == pygame.MOUSEBUTTONDOWN:
 				begin = True
-				
+
 	play_game(n[0])
 
 	return None
