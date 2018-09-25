@@ -1,12 +1,12 @@
 import pygame
 from pygame.locals import *
 import numpy as np
-import matplotlib as mpl
 import time, random, math
 import os, sys, subprocess, threading
 
 sys.path.append(os.path.dirname(__file__))
 from closeupplay import win_challenge
+import statistics as stats
 
 '''
 HOW TO PLAY:
@@ -286,7 +286,7 @@ def in_movable_zone(blk_grp, move_code):
 	return not pygame.sprite.spritecollide(shooter, blk_grp_copy, False)
 
 
-def start(blk_grp, health_points, in_play, enemy_group, time_remaining, round_number, ammo_count, end_color = green):	
+def start(blk_grp, health_points, in_play, enemy_group, time_remaining, lvl, ammo_count, end_color = green):	
 	pygame.init()
 	screen.fill(0)
 	for x in range(0, width, background_img.get_width() + 1):
@@ -309,10 +309,10 @@ def start(blk_grp, health_points, in_play, enemy_group, time_remaining, round_nu
 	screen.blit(redo_button, ((13 * width)/15 - 1, (9 * height)/10))
 	screen.blit(return_button, ((14 * width)/15, (9 * height)/10))
 
-	round_title = tnr30.render("Round:", True, (0, 0, 0))
-	screen.blit(round_title, (5, height/3 - 30))
-	round_number = comic_font50.render(str(round_number), True, grey)
-	screen.blit(round_number, (25, height/3 - 10))
+	level_title = tnr30.render("Level:", True, (0, 0, 0))
+	screen.blit(level_title, (5, height/3 - 30))
+	level_number = comic_font50.render(str(lvl), True, grey)
+	screen.blit(level_number, (25, height/3 - 10))
 
 	clk_time = tnr30.render("Time: ", True, (0, 0, 0))
 	screen.blit(clk_time, (5, height/5))
@@ -335,7 +335,7 @@ def start(blk_grp, health_points, in_play, enemy_group, time_remaining, round_nu
 
 	return None
 
-def play_round(round_number, end_color):
+def play_round(lvl, end_color, lvl_stats):
 	global audio_muted                        # audio_muted is kept as a global variable so that the setting is consistent across all game screens 
 	
 	game_in_progress = True            
@@ -343,8 +343,8 @@ def play_round(round_number, end_color):
 	
 	ammo_count = 25                          
 	time_remaining = 60              
-	enemy_move_freq = 2250//round_number      # the amount of time required for another enemy to appear on the screen
-	health_points = 100 + round_number//3 * 50
+	enemy_move_freq = 2250//lvl      # the amount of time required for another enemy to appear on the screen
+	health_points = 100 + lvl//3 * 50
 
 	move_keys = {"up": False, "left": False, "down": False, "right": False, "space": False}
 	ammo_keys = {"reload": False}
@@ -364,7 +364,7 @@ def play_round(round_number, end_color):
 	pygame.time.set_timer(enemy_move, enemy_move_freq)
 
 	while game_in_progress:
-		start(blk_grp, health_points, in_play, enemy_group, time_remaining, round_number, ammo_count, end_color)
+		start(blk_grp, health_points, in_play, enemy_group, time_remaining, lvl, ammo_count, end_color)
 
 		for event in pygame.event.get():
 			mouse_psnX, mouse_psnY = pygame.mouse.get_pos()
@@ -387,7 +387,7 @@ def play_round(round_number, end_color):
 					if ammo_count > 0:
 						dx, dy = 0, 0 
 						ammo_count -= 1
-						start(blk_grp, health_points, in_play, enemy_group, time_remaining, round_number, ammo_count, end_color)
+						start(blk_grp, health_points, in_play, enemy_group, time_remaining, lvl, ammo_count, end_color)
 						bullet_range = 10   # defines the number of iterations of the bullet animation
 						while shooter.rect.right + bullet.width + dx <= screen_rect.right and bullet_range >= 0:
 							angle = shooting_angle()
@@ -399,10 +399,11 @@ def play_round(round_number, end_color):
 							bullet_range -= 1
 							if pygame.sprite.spritecollide(bullet, enemy_group, True):   # stop the bullet once it hits an enemy
 								bullet_range = -1
+								lvl_stats[0][lvl - 1] += 1
 								if False and random.randint(0, 100) > 90:  # if a number randomly chosen is greater than 90, then go into the 3D mode 
 									if not win_challenge():  # access the 3D game animation (not yet ready)
 										health_points -= 10
-								start(blk_grp, health_points, in_play, enemy_group, time_remaining, round_number, ammo_count, end_color)
+								start(blk_grp, health_points, in_play, enemy_group, time_remaining, lvl, ammo_count, end_color)
 							enemy_group.update()
 					else:
 						reload_rect = pygame.draw.rect(screen, (0, 0, 0), (width/2 - 200, height/2, 350, 60), 0)
@@ -443,7 +444,7 @@ def play_round(round_number, end_color):
 						grey_areas[block] += 1 
 				for block in tbr:        
 					grey_areas.pop(block)
-				start(blk_grp, health_points, in_play, enemy_group, time_remaining, round_number, ammo_count, end_color)
+				start(blk_grp, health_points, in_play, enemy_group, time_remaining, lvl, ammo_count, end_color)
 			elif event.type == enemy_appear and in_play:
 				enemy_group.add(EnemyOne(50, 50, random.randint(500, width), random.randint(0, height)))
 			elif event.type == enemy_move and in_play and enemy_group:
@@ -490,21 +491,28 @@ def play_round(round_number, end_color):
 	return health_points > 0  
 
 
-def play_game(round_number):
-	if round_number == 10: 
+def play_game(lvl, lvl_stats):	
+	if lvl == 10: 
 		return "Complete"
 
 	try:    
 		if sys.platform == "darwin":   
-			os.system("osascript -e 'display notification \"{0}\" with title \"{1}\"'".format("Round %d has started" %round_number, "Defend the Town"))
+			os.system("osascript -e 'display notification \"{0}\" with title \"{1}\"'".format("Round %d has started" %lvl, "Defend the Town"))
 		elif sys.platform.startswith("linux"):
-			os.system("notify-send {0} {1}".format ("Defend the Town", "Round %d has started" %round_number))
+			os.system("notify-send {0} {1}".format ("Defend the Town", "Round %d has started" %lvl))
 	except: 
 		raise OSError(1, "Notification cannot be displayed")
-	else:   
-		round_number = round_number + 1 if play_round(round_number, green) else 1
 
-	return play_game(round_number)
+	if play_round(lvl, green, lvl_stats):
+		lvl += 1  
+	else:
+		lvl = 1
+
+	for statlst in lvl_stats:
+		statlst.append(0)
+	
+	stats.plot_numberkilled(lvl_stats[0], lvl)
+	return play_game(lvl, lvl_stats)
 
 
 def start_game(thread_running):
@@ -527,7 +535,9 @@ def start_game(thread_running):
 			elif event.type == pygame.MOUSEBUTTONDOWN:
 				begin = True
 
-	play_game(n[0])
+	lvl_stats = [[0]] # TO BE CHANGED TO LIST OF DICTS -- keeps track of statistics for every level 
+					  # (outer array indicates level, inner reflects type of stat) 
+	play_game(n[0], lvl_stats)
 
 	return None
 
