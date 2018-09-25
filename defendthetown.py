@@ -541,4 +541,4 @@ def start_game(thread_running):
 
 	return None
 
-start_game(True)
+start_game(False)
